@@ -112,34 +112,36 @@ module.exports = function inspect_(obj, options, depth, seen) {
     }
     var numericSeparator = opts.numericSeparator;
 
-    if (typeof obj === 'undefined') {
+    // Fast path for primitives - optimized checks
+    var objType = typeof obj;
+    if (objType === 'undefined') {
         return 'undefined';
     }
     if (obj === null) {
         return 'null';
     }
-    if (typeof obj === 'boolean') {
+    if (objType === 'boolean') {
         return obj ? 'true' : 'false';
     }
 
-    if (typeof obj === 'string') {
+    if (objType === 'string') {
         return inspectString(obj, opts);
     }
-    if (typeof obj === 'number') {
+    if (objType === 'number') {
         if (obj === 0) {
             return Infinity / obj > 0 ? '0' : '-0';
         }
         var str = String(obj);
         return numericSeparator ? addNumericSeparator(obj, str) : str;
     }
-    if (typeof obj === 'bigint') {
+    if (objType === 'bigint') {
         var bigIntStr = String(obj) + 'n';
         return numericSeparator ? addNumericSeparator(obj, bigIntStr) : bigIntStr;
     }
 
     var maxDepth = typeof opts.depth === 'undefined' ? 5 : opts.depth;
     if (typeof depth === 'undefined') { depth = 0; }
-    if (depth >= maxDepth && maxDepth > 0 && typeof obj === 'object') {
+    if (depth >= maxDepth && maxDepth > 0 && objType === 'object') {
         return isArray(obj) ? '[Array]' : '[Object]';
     }
 
@@ -503,6 +505,9 @@ function indentedJoin(xs, indent) {
     return lineJoiner + $join.call(xs, ',' + lineJoiner) + '\n' + indent.prev;
 }
 
+// Pre-compiled regex for property key validation
+var nonWordKeyRegex = /[^\w$]/;
+
 function arrObjKeys(obj, inspect) {
     var isArr = isArray(obj);
     var xs = [];
@@ -521,13 +526,14 @@ function arrObjKeys(obj, inspect) {
         }
     }
 
+    // Optimized property iteration
     for (var key in obj) { // eslint-disable-line no-restricted-syntax
         if (!has(obj, key)) { continue; } // eslint-disable-line no-restricted-syntax, no-continue
         if (isArr && String(Number(key)) === key && key < obj.length) { continue; } // eslint-disable-line no-restricted-syntax, no-continue
         if (hasShammedSymbols && symMap['$' + key] instanceof Symbol) {
             // this is to prevent shammed Symbols, which are stored as strings, from being included in the string key section
             continue; // eslint-disable-line no-restricted-syntax, no-continue
-        } else if ($test.call(/[^\w$]/, key)) {
+        } else if ($test.call(nonWordKeyRegex, key)) {
             xs.push(inspect(key, obj) + ': ' + inspect(obj[key], obj));
         } else {
             xs.push(key + ': ' + inspect(obj[key], obj));
